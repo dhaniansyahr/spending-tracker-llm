@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4fb8b2"/>
+      <stop offset="1" stop-color="#2f6a4a"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- Subtle inner glint -->
+  <rect width="64" height="64" rx="14" fill="url(#glow)"/>
+
+  <!-- Stylised S (spending flow) -->
+  <path
+    d="M41 19C41 19 32 17.5 26.5 22.5C21 27.5 24.5 33 31 35.5C37.5 38 42 41 39.5 46C37 51 27.5 52 20 48"
+    stroke="white"
+    stroke-width="4.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+
+  <!-- 4-point AI sparkle — top right -->
+  <path
+    d="M47.5 10 L49 7 L50.5 10 L54 11.5 L50.5 13 L49 16 L47.5 13 L44 11.5 Z"
+    fill="white"
+  />
+
+  <!-- Small secondary sparkle dots -->
+  <circle cx="44" cy="51" r="2"   fill="white" opacity="0.45"/>
+  <circle cx="50" cy="46" r="1.4" fill="white" opacity="0.3"/>
+</svg>
