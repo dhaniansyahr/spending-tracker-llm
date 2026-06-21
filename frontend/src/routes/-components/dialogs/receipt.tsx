@@ -1,11 +1,10 @@
 import * as React from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ScanIcon } from "lucide-react";
+import { ImageIcon, ScanIcon, UploadIcon } from "lucide-react";
 import { Modal, type ModalHandle } from "#/components/shared/modal";
 import { Button } from "#/components/ui/button";
-import { Input } from "#/components/ui/input";
 import { services } from "#/services";
-import { schemaSpending, schemaAnalyzeReceipt } from "#/services/spendings/type";
+import { schemaSpending } from "#/services/spendings/type";
 import {
   SpendingFormFields,
   initialFormState,
@@ -13,11 +12,15 @@ import {
   type SpendingFormState,
 } from "./spending-form";
 
+const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
   const modalRef = React.useRef<ModalHandle>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
   const [step, setStep] = React.useState<"input" | "confirm">("input");
-  const [receiptUrl, setReceiptUrl] = React.useState("");
-  const [urlError, setUrlError] = React.useState("");
+  const [file, setFile] = React.useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [fileError, setFileError] = React.useState("");
   const [form, setForm] = React.useState<SpendingFormState>(initialFormState);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const queryClient = useQueryClient();
@@ -30,11 +33,15 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
 
   const resetDialog = React.useCallback(() => {
     setStep("input");
-    setReceiptUrl("");
-    setUrlError("");
+    setFile(null);
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setFileError("");
     setForm(initialFormState);
     setErrors({});
-  }, []);
+  }, [previewUrl]);
+
+  const uploadMutation = useMutation(services.storage.upload());
 
   const analyzeMutation = useMutation({
     ...services.spending.analyzeReceipt(),
@@ -52,15 +59,52 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
     },
   });
 
-  const handleAnalyze = React.useCallback(() => {
-    const result = schemaAnalyzeReceipt.safeParse({ receiptUrl });
-    if (!result.success) {
-      setUrlError(result.error.issues[0]?.message ?? "Invalid URL.");
+  const handleFileChange = React.useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selected = e.target.files?.[0];
+      if (!selected) return;
+
+      if (!ACCEPTED_TYPES.includes(selected.type)) {
+        setFileError("Only JPG, PNG, and WEBP images are supported.");
+        return;
+      }
+
+      setFileError("");
+      setFile(selected);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(URL.createObjectURL(selected));
+    },
+    [previewUrl],
+  );
+
+  const handleDrop = React.useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const dropped = e.dataTransfer.files[0];
+      if (!dropped) return;
+
+      if (!ACCEPTED_TYPES.includes(dropped.type)) {
+        setFileError("Only JPG, PNG, and WEBP images are supported.");
+        return;
+      }
+
+      setFileError("");
+      setFile(dropped);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(URL.createObjectURL(dropped));
+    },
+    [previewUrl],
+  );
+
+  const handleAnalyze = React.useCallback(async () => {
+    if (!file) {
+      setFileError("Please select a receipt image.");
       return;
     }
-    setUrlError("");
-    analyzeMutation.mutate(result.data);
-  }, [receiptUrl, analyzeMutation]);
+
+    const uploaded = await uploadMutation.mutateAsync(file);
+    analyzeMutation.mutate({ receiptUrl: uploaded.url });
+  }, [file, uploadMutation, analyzeMutation]);
 
   const handleSave = React.useCallback(() => {
     const result = schemaSpending.safeParse({
@@ -92,8 +136,16 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
     [],
   );
 
+  const isUploading = uploadMutation.isPending;
   const isAnalyzing = analyzeMutation.isPending;
+  const isBusy = isUploading || isAnalyzing;
   const isSaving = createMutation.isPending;
+
+  const busyLabel = isUploading
+    ? "Uploading..."
+    : isAnalyzing
+      ? "Analyzing..."
+      : null;
 
   return (
     <Modal
@@ -101,7 +153,7 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
       title={step === "input" ? "Receipt Analysis" : "Confirm Spending"}
       description={
         step === "input"
-          ? "Provide a receipt URL and the AI will extract the details."
+          ? "Upload a receipt image and the AI will extract the details."
           : "Review and adjust the extracted details before saving."
       }
       onOpenChange={(open) => {
@@ -113,13 +165,13 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
             <Button
               variant="outline"
               onClick={() => modalRef.current?.close()}
-              disabled={isAnalyzing}
+              disabled={isBusy}
             >
               Cancel
             </Button>
-            <Button onClick={handleAnalyze} disabled={isAnalyzing}>
-              {isAnalyzing ? (
-                <>Analyzing...</>
+            <Button onClick={handleAnalyze} disabled={isBusy || !file}>
+              {isBusy ? (
+                <>{busyLabel}</>
               ) : (
                 <>
                   <ScanIcon className="size-4" />
@@ -154,23 +206,85 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
       }
     >
       {step === "input" ? (
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-medium text-(--sea-ink)">
-            Receipt URL
-          </label>
-          <Input
-            type="url"
-            value={receiptUrl}
-            onChange={(e) => setReceiptUrl(e.target.value)}
-            placeholder="https://example.com/receipt.jpg"
-            disabled={isAnalyzing}
+        <div className="flex flex-col gap-3">
+          {/* Drop zone */}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => !isBusy && inputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+            }}
+            onDrop={isBusy ? undefined : handleDrop}
+            onDragOver={(e) => e.preventDefault()}
+            className={[
+              "relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed transition-colors",
+              previewUrl ? "min-h-48 p-2" : "min-h-40 p-6",
+              isBusy
+                ? "cursor-not-allowed opacity-60"
+                : "cursor-pointer hover:border-(--lagoon) hover:bg-(--lagoon)/5",
+              fileError
+                ? "border-destructive"
+                : "border-(--line)",
+            ].join(" ")}
+          >
+            {previewUrl ? (
+              <img
+                src={previewUrl}
+                alt="Receipt preview"
+                className="max-h-60 w-full rounded-lg object-contain"
+              />
+            ) : (
+              <>
+                <div className="flex size-10 items-center justify-center rounded-full bg-(--surface-strong)">
+                  <ImageIcon className="size-5 text-(--sea-ink-soft)" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-(--sea-ink)">
+                    Click or drag to upload
+                  </p>
+                  <p className="text-xs text-(--sea-ink-soft)/60">
+                    JPG, PNG, WEBP — max 10 MB
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Re-upload overlay when image already selected */}
+            {previewUrl && !isBusy && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/0 opacity-0 transition-all hover:bg-black/30 hover:opacity-100">
+                <div className="flex items-center gap-1.5 rounded-lg bg-white/90 px-3 py-1.5 text-xs font-medium text-(--sea-ink)">
+                  <UploadIcon className="size-3.5" />
+                  Change image
+                </div>
+              </div>
+            )}
+          </div>
+
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleFileChange}
+            disabled={isBusy}
           />
-          {urlError && (
-            <p className="text-xs text-destructive">{urlError}</p>
+
+          {fileError && (
+            <p className="text-xs text-destructive">{fileError}</p>
           )}
-          {analyzeMutation.isError && (
+
+          {(uploadMutation.isError || analyzeMutation.isError) && (
             <p className="text-xs text-destructive">
-              Analysis failed. Please try again.
+              {uploadMutation.isError
+                ? "Upload failed. Please try again."
+                : "Analysis failed. Please try again."}
+            </p>
+          )}
+
+          {file && !isBusy && (
+            <p className="text-xs text-(--sea-ink-soft)/60 truncate">
+              {file.name} · {(file.size / 1024).toFixed(0)} KB
             </p>
           )}
         </div>
