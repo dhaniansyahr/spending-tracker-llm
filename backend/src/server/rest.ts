@@ -6,11 +6,16 @@ import { PrismaInstance } from "@/pkg/prisma/index.js";
 import routes from "@/routes/index.js";
 
 export default function createRestServer() {
-  const allowedOrigins = process.env.ALLOWED_ORIGINS;
-  const corsOptions =
-    !allowedOrigins || allowedOrigins === "*"
-      ? {}
-      : { origin: allowedOrigins.split(",") };
+  let allowedOrigins: string[] = ["*"];
+  let corsOptions: any = {};
+  if (process.env.ALLOWED_ORIGINS == "*") {
+    corsOptions = {};
+  } else {
+    if (process.env.ALLOWED_ORIGINS) {
+      allowedOrigins = process.env.ALLOWED_ORIGINS!.split(",");
+      corsOptions.origin = allowedOrigins;
+    }
+  }
 
   const app = new Hono();
 
