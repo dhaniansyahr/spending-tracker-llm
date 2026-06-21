@@ -103,7 +103,7 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
     }
 
     const uploaded = await uploadMutation.mutateAsync(file);
-    analyzeMutation.mutate({ receiptUrl: uploaded.url });
+    analyzeMutation.mutate({ url: uploaded.url });
   }, [file, uploadMutation, analyzeMutation]);
 
   const handleSave = React.useCallback(() => {
@@ -223,9 +223,7 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
               isBusy
                 ? "cursor-not-allowed opacity-60"
                 : "cursor-pointer hover:border-(--lagoon) hover:bg-(--lagoon)/5",
-              fileError
-                ? "border-destructive"
-                : "border-(--line)",
+              fileError ? "border-destructive" : "border-(--line)",
             ].join(" ")}
           >
             {previewUrl ? (
@@ -270,9 +268,7 @@ const DialogCreateReceipt = React.forwardRef<ModalHandle, {}>((_, outerRef) => {
             disabled={isBusy}
           />
 
-          {fileError && (
-            <p className="text-xs text-destructive">{fileError}</p>
-          )}
+          {fileError && <p className="text-xs text-destructive">{fileError}</p>}
 
           {(uploadMutation.isError || analyzeMutation.isError) && (
             <p className="text-xs text-destructive">

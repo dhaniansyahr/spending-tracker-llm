@@ -87,7 +87,7 @@ export const schemaAnalyzeText = z.object({
 });
 
 export const schemaAnalyzeReceipt = z.object({
-  receiptUrl: z
+  url: z
     .string({ message: SpendingErrorMessages.receiptUrl.required })
     .url(SpendingErrorMessages.receiptUrl.url),
 });
